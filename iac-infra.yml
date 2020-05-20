@@ -19,10 +19,15 @@ Parameters:
       Type: String
       Default: 10.1.1.0/24
       AllowedPattern: (\d{1,3}\.){3}\d{1,3}\/\d{2}
-    CIDRPublicSubnet:
+    CIDRPublicSubnet1:
       Description: CIDR Network for PrivateSubnet1
       Type: String
-      Default: 10.1.2.0/24
+      Default: 10.1.20.0/24
+      AllowedPattern: (\d{1,3}\.){3}\d{1,3}\/\d{2}
+    CIDRPublicSubnet2:
+      Description: CIDR Network for PrivateSubnet1
+      Type: String
+      Default: 10.1.21.0/24
       AllowedPattern: (\d{1,3}\.){3}\d{1,3}\/\d{2}
 Resources:
     WEBvpc:
@@ -39,12 +44,14 @@ Resources:
         Tags:
           - Key: Project
             Value: !Ref ProjectName
+      DependsOn: WEBvpc
     
     InternetGatewayAttach:
       Type: AWS::EC2::VPCGatewayAttachment
       Properties: 
         InternetGatewayId: !Ref InternetGateway
         VpcId: !Ref WEBvpc
+      DependsOn: InternetGateway
     
     PrivateSubnet1:
       Type: AWS::EC2::Subnet
@@ -56,6 +63,7 @@ Resources:
         CidrBlock: !Ref CIDRPrivateSubnet1
         MapPublicIpOnLaunch: false
         VpcId: !Ref WEBvpc
+      DependsOn: WEBvpc
     
     PrivateSubnet2:
       Type: AWS::EC2::Subnet
@@ -67,17 +75,31 @@ Resources:
         CidrBlock: !Ref CIDRPrivateSubnet2
         MapPublicIpOnLaunch: false
         VpcId: !Ref WEBvpc
+      DependsOn: WEBvpc
     
-    PublicSubnet:
+    PublicSubnet1:
       Type: AWS::EC2::Subnet
       Properties: 
         AvailabilityZone: !Select
           - 0
           - !GetAZs
             Ref: 'AWS::Region'
-        CidrBlock: !Ref CIDRPublicSubnet
+        CidrBlock: !Ref CIDRPublicSubnet1
         MapPublicIpOnLaunch: true
         VpcId: !Ref WEBvpc
+      DependsOn: WEBvpc
+    
+    PublicSubnet2:
+      Type: AWS::EC2::Subnet
+      Properties: 
+        AvailabilityZone: !Select
+          - 1
+          - !GetAZs
+            Ref: 'AWS::Region'
+        CidrBlock: !Ref CIDRPublicSubnet2
+        MapPublicIpOnLaunch: true
+        VpcId: !Ref WEBvpc
+      DependsOn: WEBvpc
     
     InstancesSecurityGroup:
       Type: AWS::EC2::SecurityGroup
@@ -89,3 +111,38 @@ Resources:
           FromPort: 80
           ToPort: 80
           CidrIp: 0.0.0.0/0
+      DependsOn: WEBvpc
+
+    LoadBalancerWeb:
+      Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+      Properties: 
+        Name: web-loadbalancer
+        IpAddressType: ipv4
+        Scheme: internet-facing
+        Subnets: 
+          - !Ref PublicSubnet1
+          - !Ref PublicSubnet2
+        Type: application
+      DependsOn: 
+        - PublicSubnet1
+        - PublicSubnet2
+
+    WebTargetGroup:
+      Type: AWS::ElasticLoadBalancingV2::TargetGroup
+      Properties: 
+        Name: web-target-group
+        HealthCheckEnabled: true
+        HealthCheckIntervalSeconds: 10
+        HealthCheckPath: /
+        HealthCheckPort: 80
+        HealthCheckProtocol: HTTP
+        HealthCheckTimeoutSeconds: 5
+        HealthyThresholdCount: 5
+        UnhealthyThresholdCount: 2
+        Matcher: 
+          HttpCode: 200
+        Port: 80
+        Protocol: HTTP
+        TargetType: instance
+        VpcId: !Ref WEBvpc
+      DependsOn: LoadBalancerWeb
