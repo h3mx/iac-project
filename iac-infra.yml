@@ -146,3 +146,13 @@ Resources:
         TargetType: instance
         VpcId: !Ref WEBvpc
       DependsOn: LoadBalancerWeb
+
+    WebListener:
+      Type: AWS::ElasticLoadBalancingV2::Listener
+      Properties: 
+        DefaultActions: 
+          - Type: forward
+            TargetGroupArn: !Ref WebTargetGroup
+        LoadBalancerArn: !Ref LoadBalancerWeb
+        Port: 80
+        Protocol: HTTP
