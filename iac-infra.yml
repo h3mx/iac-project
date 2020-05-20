@@ -29,6 +29,9 @@ Parameters:
       Type: String
       Default: 10.1.21.0/24
       AllowedPattern: (\d{1,3}\.){3}\d{1,3}\/\d{2}
+    AccessKey:
+      Description: Defines the private key to connect to instances
+      Type: AWS::EC2::KeyPair::KeyName
 Resources:
     WEBvpc:
       Type: AWS::EC2::VPC
@@ -160,3 +163,32 @@ Resources:
         LoadBalancerArn: !Ref LoadBalancerWeb
         Port: 80
         Protocol: HTTP
+
+    WebServersLaunchConfiguration:
+      Type: AWS::AutoScaling::LaunchConfiguration
+      Properties: 
+        AssociatePublicIpAddress: false
+        BlockDeviceMappings: 
+          - DeviceName: "/dev/sda1"
+            Ebs: 
+              VolumeSize: "15"
+              VolumeType: "io1"
+              Iops: 200
+        EbsOptimized: false
+        ImageId: ami-003634241a8fcdec0
+        InstanceMonitoring: false
+        InstanceType: t2.micro
+        KeyName: !Ref AccessKey
+        LaunchConfigurationName: WebSsLaunchConfig
+        SecurityGroups: 
+          - !Ref InstancesSecurityGroup
+        UserData: 
+          Fn::Base64: |
+            #!/bin/bash
+            apt-get update -y
+            apt-get install unzip awscli -y
+            apt-get install apache2 -y
+            systemctl start apache2.service
+            cd /var/www/html
+            aws s3 cp s3://udacity-demo-1/udacity.zip .
+            unzip -o udacity.zip
