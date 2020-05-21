@@ -133,6 +133,7 @@ Resources:
       DependsOn: 
         - PublicSubnet1
         - PublicSubnet2
+        - InternetGatewayAttach
 
     WebTargetGroup:
       Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -163,6 +164,9 @@ Resources:
         LoadBalancerArn: !Ref LoadBalancerWeb
         Port: 80
         Protocol: HTTP
+      DependsOn:
+        - LoadBalancerWeb
+        - WebTargetGroup
 
     WebServersLaunchConfiguration:
       Type: AWS::AutoScaling::LaunchConfiguration
@@ -179,16 +183,44 @@ Resources:
         InstanceMonitoring: false
         InstanceType: t2.micro
         KeyName: !Ref AccessKey
-        LaunchConfigurationName: WebSsLaunchConfig
+        IamInstanceProfile: !Ref WebServerInstanceProfile
         SecurityGroups: 
           - !Ref InstancesSecurityGroup
-        UserData: 
-          Fn::Base64: |
-            #!/bin/bash
-            apt-get update -y
-            apt-get install unzip awscli -y
-            apt-get install apache2 -y
-            systemctl start apache2.service
-            cd /var/www/html
-            aws s3 cp s3://udacity-demo-1/udacity.zip .
-            unzip -o udacity.zip
+        UserData:
+          Fn::Base64: 
+            !Sub |
+              #!/bin/bash
+              apt-get update -y
+              apt-get install unzip awscli -y
+              apt-get install apache2 -y
+              systemctl start apache2.service
+              cd /var/www/html
+              aws s3 cp s3://udacity-demo-1/udacity.zip .
+              unzip -o udacity.zip
+      DependsOn: 
+        - WebServerInstanceProfile
+
+    WebServerInstanceProfile:
+      Type: AWS::IAM::InstanceProfile
+      Properties: 
+        InstanceProfileName: WebServerInstaceProfile
+        Roles: 
+          - !Ref S3IamRoleInstances
+      DependsOn: S3IamRoleInstances
+
+    S3IamRoleInstances:
+      Type: AWS::IAM::Role
+      Properties: 
+        RoleName: S3WebServerRole
+        Description: S3 Read Only Access for web server instances
+        AssumeRolePolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                - ec2.amazonaws.com
+              Action:
+                - 'sts:AssumeRole'
+        ManagedPolicyArns: 
+          - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
