@@ -304,7 +304,6 @@ Resources:
         ImageId: !FindInMap [RegionMap, !Ref "AWS::Region", default]
         InstanceMonitoring: false
         InstanceType: t3.small
-        KeyName: !Ref AccessKey
         IamInstanceProfile: !Ref WebServerInstanceProfile
         SecurityGroups: 
           - !Ref InstancesSecurityGroup
