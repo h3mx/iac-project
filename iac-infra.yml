@@ -210,6 +210,18 @@ Resources:
           CidrIp: 0.0.0.0/0
       DependsOn: WEBvpc
 
+    BastionSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Allow ssh to Bastion
+        VpcId: !Ref WEBvpc
+        SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      DependsOn: WEBvpc
+
     LoadBalancerWeb:
       Type: AWS::ElasticLoadBalancingV2::LoadBalancer
       Properties: 
@@ -346,3 +358,20 @@ Resources:
         - PrivateSubnetAssociation2
         - PublicSubnetAssociation1
         - PublicSubnetAssociation2
+
+    BastionInstance: 
+      Type: AWS::EC2::Instance
+      Properties: 
+        ImageId: ami-003634241a8fcdec0
+        KeyName: !Ref AccessKey
+        InstanceType: t2.micro
+        NetworkInterfaces:
+          - GroupSet:
+            - !Ref BastionSecurityGroup
+            AssociatePublicIpAddress: 'true'
+            DeviceIndex: '0'
+            DeleteOnTermination: 'true'
+            SubnetId: !Ref PublicSubnet1
+      DependsOn:
+        - PublicSubnet1
+        - InternetGatewayAttach
