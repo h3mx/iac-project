@@ -32,6 +32,12 @@ Parameters:
     AccessKey:
       Description: Defines the private key to connect to instances
       Type: AWS::EC2::KeyPair::KeyName
+Mappings:
+    RegionMap: 
+      us-east-1: ami-085925f297f89fce1
+      us-east-2: ami-07c1207a9d40bc3bd
+      us-west-1: ami-0f56279347d2fa43e
+      us-west-2: ami-003634241a8fcdec0
 Resources:
     WEBvpc:
       Type: AWS::EC2::VPC
@@ -291,7 +297,7 @@ Resources:
               VolumeType: "io1"
               Iops: 200
         EbsOptimized: false
-        ImageId: ami-003634241a8fcdec0
+        ImageId: !FindInMap [RegionMap, !Ref "AWS::Region"]
         InstanceMonitoring: false
         InstanceType: t2.micro
         KeyName: !Ref AccessKey
@@ -362,7 +368,7 @@ Resources:
     BastionInstance: 
       Type: AWS::EC2::Instance
       Properties: 
-        ImageId: ami-003634241a8fcdec0
+        ImageId: !FindInMap [RegionMap, !Ref "AWS::Region"]
         KeyName: !Ref AccessKey
         InstanceType: t2.micro
         NetworkInterfaces:
