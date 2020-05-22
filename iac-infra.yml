@@ -303,7 +303,7 @@ Resources:
         EbsOptimized: false
         ImageId: !FindInMap [RegionMap, !Ref "AWS::Region", default]
         InstanceMonitoring: false
-        InstanceType: t2.micro
+        InstanceType: t3.small
         KeyName: !Ref AccessKey
         IamInstanceProfile: !Ref WebServerInstanceProfile
         SecurityGroups: 
@@ -374,7 +374,7 @@ Resources:
       Properties: 
         ImageId: !FindInMap [RegionMap, !Ref "AWS::Region", default]
         KeyName: !Ref AccessKey
-        InstanceType: t2.micro
+        InstanceType: t3.small
         NetworkInterfaces:
           - GroupSet:
             - !Ref BastionSecurityGroup
@@ -393,3 +393,6 @@ Outputs:
         - ''
         - - 'http://' 
           - !GetAtt LoadBalancerWeb.DNSName
+    BastionHost:
+      Description: Public IP of the BastionHost
+      Value: !GetAtt BastionInstance.PublicIp
