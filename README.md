@@ -1,6 +1,6 @@
 # Infrastructure as Code Project
 
-## By now only you can use this project with the following Regions:
+## By now you can use this project only with the following Regions:
 
 * us-west-2
 * us-west-1
