@@ -375,3 +375,11 @@ Resources:
       DependsOn:
         - PublicSubnet1
         - InternetGatewayAttach
+
+Outputs:
+    WebAccess:
+      Description: URL to access the Udagram Project
+      Value: !Join
+        - ''
+        - - 'http://' 
+          - !GetAtt LoadBalancerWeb.DNSName
