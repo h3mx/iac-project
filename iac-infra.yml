@@ -104,6 +104,84 @@ Resources:
         VpcId: !Ref WEBvpc
       DependsOn: WEBvpc
     
+    EIPNatGateway:
+      Type: AWS::EC2::EIP
+      Properties: 
+        Domain: !Ref WEBvpc
+    
+    WebNatGateway:
+      Type: AWS::EC2::NatGateway
+      Properties: 
+        AllocationId: !GetAtt EIPNatGateway.AllocationId
+        SubnetId: !Ref PublicSubnet1
+      DependsOn: PublicSubnet1
+
+    PrivateRouteTable:
+      Type: AWS::EC2::RouteTable
+      Properties: 
+        VpcId: !Ref WEBvpc
+
+    PrivateRoute:
+      Type: AWS::EC2::Route
+      Properties:
+        RouteTableId: !Ref PrivateRouteTable
+        DestinationCidrBlock: 0.0.0.0/0
+        NatGatewayId: !Ref WebNatGateway
+      DependsOn:
+        - PrivateRouteTable
+        - WebNatGateway
+
+    PrivateSubnetAssociation1:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties: 
+        RouteTableId: !Ref PrivateRouteTable
+        SubnetId: !Ref PrivateSubnet1
+      DependsOn: 
+        - PrivateSubnet1
+        - PrivateRouteTable
+    
+    PrivateSubnetAssociation2:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties: 
+        RouteTableId: !Ref PrivateRouteTable
+        SubnetId: !Ref PrivateSubnet2
+      DependsOn: 
+        - PrivateSubnet2
+        - PrivateRouteTable
+
+    PublicRouteTable:
+      Type: AWS::EC2::RouteTable
+      Properties: 
+        VpcId: !Ref WEBvpc
+
+    PublicRoute:
+      Type: AWS::EC2::Route
+      Properties:
+        RouteTableId: !Ref PublicRouteTable
+        DestinationCidrBlock: 0.0.0.0/0
+        GatewayId: !Ref InternetGateway
+      DependsOn:
+        - PublicRouteTable
+        - InternetGateway
+
+    PublicSubnetAssociation1:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties: 
+        RouteTableId: !Ref PublicRouteTable
+        SubnetId: !Ref PublicSubnet1
+      DependsOn: 
+        - PublicSubnet1
+        - PublicRouteTable
+    
+    PublicSubnetAssociation2:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties: 
+        RouteTableId: !Ref PublicRouteTable
+        SubnetId: !Ref PublicSubnet2
+      DependsOn: 
+        - PublicSubnet2
+        - PublicRouteTable
+    
     InstancesSecurityGroup:
       Type: AWS::EC2::SecurityGroup
       Properties:
@@ -120,12 +198,26 @@ Resources:
           CidrIp: 0.0.0.0/0
       DependsOn: WEBvpc
 
+    LBSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Allow http to LB
+        VpcId: !Ref WEBvpc
+        SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      DependsOn: WEBvpc
+
     LoadBalancerWeb:
       Type: AWS::ElasticLoadBalancingV2::LoadBalancer
       Properties: 
         Name: web-loadbalancer
         IpAddressType: ipv4
         Scheme: internet-facing
+        SecurityGroups:
+          - !Ref LBSecurityGroup 
         Subnets: 
           - !Ref PublicSubnet1
           - !Ref PublicSubnet2
@@ -141,14 +233,10 @@ Resources:
         Name: web-target-group
         HealthCheckEnabled: true
         HealthCheckIntervalSeconds: 10
-        HealthCheckPath: /
-        HealthCheckPort: 80
         HealthCheckProtocol: HTTP
-        HealthCheckTimeoutSeconds: 5
-        HealthyThresholdCount: 5
+        HealthCheckTimeoutSeconds: 3
+        HealthyThresholdCount: 3
         UnhealthyThresholdCount: 2
-        Matcher: 
-          HttpCode: 200
         Port: 80
         Protocol: HTTP
         TargetType: instance
@@ -165,8 +253,20 @@ Resources:
         Port: 80
         Protocol: HTTP
       DependsOn:
-        - LoadBalancerWeb
         - WebTargetGroup
+
+    WebListenerRule:
+      Type: AWS::ElasticLoadBalancingV2::ListenerRule
+      Properties:
+        Actions:
+        - Type: forward
+          TargetGroupArn: !Ref 'WebTargetGroup'
+        Conditions:
+        - Field: path-pattern
+          Values: [/]
+        ListenerArn: !Ref WebListener
+        Priority: 1
+      DependsOn: WebListener
 
     WebServersLaunchConfiguration:
       Type: AWS::AutoScaling::LaunchConfiguration
@@ -203,7 +303,7 @@ Resources:
     WebServerInstanceProfile:
       Type: AWS::IAM::InstanceProfile
       Properties: 
-        InstanceProfileName: WebServerInstaceProfile
+        InstanceProfileName: WebServerProfile
         Roles: 
           - !Ref S3IamRoleInstances
       DependsOn: S3IamRoleInstances
@@ -224,3 +324,25 @@ Resources:
                 - 'sts:AssumeRole'
         ManagedPolicyArns: 
           - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+
+    WebAutoScalingGroup:
+      Type: AWS::AutoScaling::AutoScalingGroup
+      Properties: 
+        AutoScalingGroupName: web-autoscaling
+        VPCZoneIdentifier:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+        DesiredCapacity: 4
+        HealthCheckGracePeriod: 300
+        HealthCheckType: ELB
+        LaunchConfigurationName: !Ref WebServersLaunchConfiguration
+        MaxSize: 4
+        MinSize: 4
+        TargetGroupARNs: 
+          - !Ref WebTargetGroup
+      DependsOn:
+        - WebServersLaunchConfiguration
+        - PrivateSubnetAssociation1
+        - PrivateSubnetAssociation2
+        - PublicSubnetAssociation1
+        - PublicSubnetAssociation2
